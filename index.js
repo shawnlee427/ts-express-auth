@@ -64,7 +64,7 @@ app.get('/restricted', function (req, res, next) {
     res.redirect('/login');
   }
 }, function(req, res){
-  res.send('로그인 성공! <a href="/logout">로그아웃</a>');
+  res.render('restricted');
 });
 
 app.get('/logout', function(req, res){
@@ -74,7 +74,7 @@ app.get('/logout', function(req, res){
 });
 
 app.get('/login', function(req, res){
-  res.render('login');
+  res.render('login', {loggedin: req.session.user});
 });
 
 app.post('/login', function (req, res, next) {
@@ -83,9 +83,7 @@ app.post('/login', function (req, res, next) {
     if (user) {
       req.session.regenerate(function(){
         req.session.user = user;
-        req.session.success = 'username: ' + user.name
-          + ' <a href="/logout">로그아웃</a>. '
-          + ' <a href="/restricted">로그인 확인</a>.';
+        req.session.success = 'username: ' + user.name;
         res.redirect('back');
       });
     } else {
