@@ -2,6 +2,47 @@ import express, { NextFunction, Request, Response } from "express";
 import session from "express-session";
 import path from "path";
 
+class Article {
+    public name: string;
+
+    public title: string;
+    public contents: string;
+
+    public constructor(name: string, title: string, contents: string) {
+        this.name = name;
+        this.title = title;
+        this.contents = contents;
+    }
+}
+
+const bbs: Article[] = [
+    { name: 'tj', title: 'hello', contents: 'nice to meet you' },
+    { name: 'bj', title: 'I\'m new here', contents: 'yoroshiku' },
+    { name: 'tj', title: 'here again!', contents: 'anybody here?' },
+    { name: 'ts', title: 'rich people', contents: 'money ain\'t an issue' },
+];
+
+function listBbs(req: Request, res: Response, next: NextFunction): void {
+    try {
+        res.render('bbs', { list: bbs });
+    } catch (error) {
+        next(error);
+    }
+};
+
+function writeBbs(req: Request, res: Response, next: NextFunction) {
+    try {
+        if (!req.session.user) {
+            res.redirect("login");
+        } else {
+            bbs.push({ name: req.session.user.name, title: req.body.title, contents: req.body.contents })
+            res.redirect("/bbs")
+        }
+    }
+    catch (error) {
+        next(error);
+    }
+}
 class User {
     public name: string;
 
@@ -23,6 +64,10 @@ declare module 'express-session' {
 
 const users: User[] = [
     { name: 'tj', password: 'foobar' },
+    { name: 'bj', password: 'pass' },
+    { name: 'kj', password: 'word' },
+    { name: 'ts', password: 'ts' },
+    { name: 'tl', password: 'tl' },
 ];
 
 function findUser(name: string): User | null {
@@ -138,6 +183,8 @@ class App {
         this.app.post('/login', logIn);
         this.app.get('/restricted', restricted);
         this.app.get('/logout', logOut);
+        this.app.get('/bbs', listBbs);
+        this.app.post('/write', writeBbs);
     }
 }
 
