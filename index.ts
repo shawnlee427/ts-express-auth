@@ -62,92 +62,101 @@ declare module 'express-session' {
     }
 }
 
-const users: User[] = [
-    { name: 'tj', password: 'foobar' },
-    { name: 'bj', password: 'pass' },
-    { name: 'kj', password: 'word' },
-    { name: 'ts', password: 'ts' },
-    { name: 'tl', password: 'tl' },
-];
+class AuthRepository {
+    public users: User[] = [
+        { name: 'tj', password: 'foobar' },
+        { name: 'bj', password: 'pass' },
+        { name: 'kj', password: 'word' },
+        { name: 'ts', password: 'ts' },
+        { name: 'tl', password: 'tl' },
+    ];
 
-function findUser(name: string): User | null {
-    var user = users.find(user => user.name === name);
-    if (!user) return null;
-    else return user;
-}
-
-
-function authenticate(name: string, pass: string, fn: (user: User | null) => void) {
-    var user = findUser(name);
-    if (!user) return fn(null);
-    if (pass === user.password) return fn(user);
-    fn(null);
-}
-
-function index(req: Request, res: Response, next: NextFunction): void {
-    try {
-        res.redirect('/login');
-    } catch (error) {
-        next(error);
+    public findUser(name: string): User | null {
+        var user = this.users.find(user => user.name === name);
+        if (!user) return null;
+        else return user;
     }
-};
 
-function signUp(req: Request, res: Response, next: NextFunction): void {
-    try {
-        res.render('login', { loggedin: req.session.user });
-    } catch (error) {
-        next(error);
+}
+class AuthService {
+    public authRepository = new AuthRepository();
+
+    public async authenticate(name: string, pass: string, fn: (user: User | null) => void) {
+        var user = this.authRepository.findUser(name);
+        if (!user) return fn(null);
+        if (pass === user.password) return fn(user);
+        fn(null);
     }
-};
+}
+class AuthController {
+    public authService = new AuthService();
 
-function logIn(req: Request, res: Response, next: NextFunction): void {
-    try {
-        authenticate(req.body.username, req.body.password, function (user) {
-            if (user) {
-                req.session.regenerate(function () {
-                    req.session.user = user;
-                    req.session.success = 'username: ' + user.name;
-                    res.redirect('back');
-                });
+    public index = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        try {
+            res.redirect('/login');
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    public signUp = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        try {
+            res.render('login', { loggedin: req.session.user });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    public logIn = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        try {
+            await this.authService.authenticate(req.body.username, req.body.password, function (user) {
+                if (user) {
+                    req.session.regenerate(function () {
+                        req.session.user = user;
+                        req.session.success = 'username: ' + user.name;
+                        res.redirect('back');
+                    });
+                } else {
+                    req.session.error = '비밀번호가 틀렸습니다. '
+                        + ' (use "tj" and "foobar")';
+                    res.redirect('/');
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    };
+
+    public logOut = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        try {
+            req.session.destroy(function () {
+                res.redirect('/');
+            });
+        } catch (error) {
+            next(error);
+        }
+    };
+    public restricted = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+        try {
+            if (req.session.user) {
+                res.render("restricted");
             } else {
-                req.session.error = '비밀번호가 틀렸습니다. '
-                    + ' (use "tj" and "foobar")';
+                req.session.error = '접근 금지!';
                 res.redirect('/');
             }
-        });
-    } catch (error) {
-        next(error);
-    }
-};
 
-function logOut(req: Request, res: Response, next: NextFunction): void {
-    try {
-        req.session.destroy(function () {
-            res.redirect('/');
-        });
-    } catch (error) {
-        next(error);
-    }
-};
-function restricted(req: Request, res: Response, next: NextFunction): void {
-    try {
-        if (req.session.user) {
-            res.render("restricted");
-        } else {
-            req.session.error = '접근 금지!';
-            res.redirect('/');
+        } catch (error) {
+            next(error);
         }
-
-    } catch (error) {
-        next(error);
-    }
-};
-
+    };
+}
 
 class App {
     public app: express.Application;
+    public authController;
     constructor() {
         this.app = express();
+        this.authController = new AuthController();
         this.initializeMiddlewares();
         this.initializeRoutes();
     }
@@ -178,11 +187,11 @@ class App {
     }
 
     private initializeRoutes() {
-        this.app.get('/', index);
-        this.app.get('/login', signUp);
-        this.app.post('/login', logIn);
-        this.app.get('/restricted', restricted);
-        this.app.get('/logout', logOut);
+        this.app.get('/', this.authController.index);
+        this.app.get('/login', this.authController.signUp);
+        this.app.post('/login', this.authController.logIn);
+        this.app.get('/restricted', this.authController.restricted);
+        this.app.get('/logout', this.authController.logOut);
         this.app.get('/bbs', listBbs);
         this.app.post('/write', writeBbs);
     }
